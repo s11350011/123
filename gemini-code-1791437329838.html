@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>微分幾何直覺：雙曲拋物面 (馬鞍面) 與切平面幾何實驗室</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js & OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { margin: 0; overflow: hidden; user-select: none; }
+    canvas { display: block; outline: none; }
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans flex h-screen w-screen overflow-hidden">
+
+  <!-- 控制面板與教學引導 -->
+  <aside class="w-[410px] bg-slate-900/95 backdrop-blur-xl border-r border-slate-800 p-5 flex flex-col justify-between z-20 shadow-2xl overflow-y-auto custom-scroll">
+    <div class="space-y-5">
+      <!-- 標題 -->
+      <div>
+        <div class="flex items-center gap-2 text-rose-400 mb-1">
+          <i data-lucide="mountain-snow" class="w-4 h-4"></i>
+          <span class="text-xs font-bold tracking-wider uppercase">微分幾何與多元微積分</span>
+        </div>
+        <h1 class="text-lg font-bold text-white tracking-tight">雙曲拋物面：鞍點與切平面直覺</h1>
+        <p class="text-xs text-slate-400 mt-0.5">破除 D < 0 公式死記，動態解構正負曲率與局域線性化</p>
+      </div>
+
+      <!-- 數學概念卡片 -->
+      <div class="bg-slate-800/60 rounded-xl p-3.5 border border-slate-700/60 text-xs space-y-1.5">
+        <div class="text-slate-400">雙曲拋物面方程式 (馬鞍面)：</div>
+        <div class="font-mono bg-slate-950/80 px-2.5 py-1.5 rounded border border-slate-800 text-rose-300 font-medium">
+          z = f(x, y) = a·x² - b·y²
+        </div>
+        <div class="text-slate-300 pt-1 flex justify-between items-center text-[11px]">
+          <span>原點 (0,0) 處判別式：</span>
+          <span class="font-mono text-amber-400 font-bold">D = f_xx·f_yy - (f_xy)² = -4ab < 0 (鞍點)</span>
+        </div>
+      </div>
+
+      <!-- 參數調整 -->
+      <div class="space-y-4">
+        <!-- 曲率形狀係數 a, b -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="flex justify-between items-center text-xs mb-1">
+              <span class="text-slate-300 font-medium">凸度係數 (a)</span>
+              <span id="paramAVal" class="font-mono text-rose-400 font-semibold">0.50</span>
+            </div>
+            <input id="paramASlider" type="range" min="0.1" max="1.0" value="0.5" step="0.05"
+              class="w-full h-1.5 bg-slate-700 rounded appearance-none cursor-pointer accent-rose-500">
+          </div>
+          <div>
+            <div class="flex justify-between items-center text-xs mb-1">
+              <span class="text-slate-300 font-medium">凹度係數 (b)</span>
+              <span id="paramBVal" class="font-mono text-cyan-400 font-semibold">0.50</span>
+            </div>
+            <input id="paramBSlider" type="range" min="0.1" max="1.0" value="0.5" step="0.05"
+              class="w-full h-1.5 bg-slate-700 rounded appearance-none cursor-pointer accent-cyan-500">
+          </div>
+        </div>
+
+        <!-- 互動核心 1：切點位置探針 (x0, y0) -->
+        <div class="bg-rose-950/30 border border-rose-800/40 rounded-xl p-3.5 space-y-2.5">
+          <div class="flex justify-between items-center text-xs font-semibold text-rose-300">
+            <span class="flex items-center gap-1.5">
+              <i data-lucide="target" class="w-3.5 h-3.5"></i> 切點探針位置 P(x₀, y₀, z₀)
+            </span>
+            <button id="btnResetToOrigin" class="text-[10px] text-slate-400 hover:text-white underline">歸位鞍點</button>
+          </div>
+          
+          <div class="space-y-2">
+            <div>
+              <div class="flex justify-between text-[11px] text-slate-300 mb-0.5">
+                <span>x₀ 座標:</span>
+                <span id="x0Val" class="font-mono text-rose-300">0.00</span>
+              </div>
+              <input id="x0Slider" type="range" min="-1.8" max="1.8" value="0.0" step="0.05"
+                class="w-full h-1 bg-slate-700 rounded appearance-none cursor-pointer accent-rose-400">
+            </div>
+            <div>
+              <div class="flex justify-between text-[11px] text-slate-300 mb-0.5">
+                <span>y₀ 座標:</span>
+                <span id="y0Val" class="font-mono text-cyan-300">0.00</span>
+              </div>
+              <input id="y0Slider" type="range" min="-1.8" max="1.8" value="0.0" step="0.05"
+                class="w-full h-1 bg-slate-700 rounded appearance-none cursor-pointer accent-cyan-400">
+            </div>
+          </div>
+
+          <!-- 切平面即時方程與法向量幾何指標 -->
+          <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800/80 text-[11px] space-y-1 font-mono text-slate-300">
+            <div class="flex justify-between">
+              <span class="text-slate-400">偏導斜率 fx, fy:</span>
+              <span id="mSlopes" class="text-amber-300">0.00, 0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">法向量 n = (-fx, -fy, 1):</span>
+              <span id="mNormal" class="text-emerald-300">(0, 0, 1)</span>
+            </div>
+            <div class="pt-1 border-t border-slate-800 text-[10px] text-slate-400">
+              切平面方程: <span id="mTangentEq" class="text-slate-200">z = 0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 互動核心 2：主曲率正交剖面展示開關 -->
+        <div class="bg-slate-800/50 border border-slate-700/60 rounded-xl p-3 space-y-2">
+          <div class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+            <i data-lucide="scissors" class="w-3.5 h-3.5 text-amber-400"></i> 正負主曲率剖面 (Slicing Planners)
+          </div>
+          <div class="space-y-1.5 text-xs text-slate-300">
+            <label class="flex items-center gap-2 cursor-pointer hover:text-white">
+              <input id="showSliceX" type="checkbox" checked class="rounded bg-slate-800 border-slate-700 text-rose-500 focus:ring-0">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+                <span>X 軸剖面 (y = y₀)：拋物線開口向上 (極小方向)</span>
+              </span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer hover:text-white">
+              <input id="showSliceY" type="checkbox" checked class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 inline-block"></span>
+                <span>Y 軸剖面 (x = x₀)：拋物線開口向下 (極大方向)</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 輔助幾何元素顯示開關 -->
+        <div class="pt-1 space-y-1.5 border-t border-slate-800 text-xs text-slate-400">
+          <label class="flex items-center gap-2 cursor-pointer hover:text-slate-200">
+            <input id="showTangentPlane" type="checkbox" checked class="rounded bg-slate-800 border-slate-700 text-rose-500 focus:ring-0">
+            <span>顯示切平面與法向量箭頭 (Tangent Plane & Normal)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer hover:text-slate-200">
+            <input id="showRuledLines" type="checkbox" class="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0">
+            <span>顯示雙重直紋性直線網格 (Ruled Surface Family)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部曲率本質小語 -->
+    <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800/80 mt-4 text-[11px] text-slate-400 leading-relaxed">
+      <span class="text-amber-400 font-semibold">幾何精髓：</span>高斯曲率 $K = \kappa_1 \kappa_2 < 0$。在鞍點處，沿不同方向行進時曲率變號，因此不存在局部極值，切平面穿透曲面本身。
+    </div>
+  </aside>
+
+  <!-- 主 3D 渲染視窗與 2D 投影圖 -->
+  <main class="flex-1 relative h-full">
+    <div id="webgl-container" class="w-full h-full"></div>
+
+    <!-- 視角提示浮水印 -->
+    <div class="absolute top-4 right-4 bg-slate-900/70 backdrop-blur-md border border-slate-800 px-3 py-1.5 rounded-lg text-xs text-slate-400 flex items-center gap-3 pointer-events-none shadow-lg">
+      <span class="flex items-center gap-1"><i data-lucide="mouse-pointer" class="w-3.5 h-3.5 text-rose-400"></i> 左鍵旋轉</span>
+      <span class="flex items-center gap-1"><i data-lucide="zoom-in" class="w-3.5 h-3.5 text-rose-400"></i> 滾輪縮放</span>
+      <span class="flex items-center gap-1"><i data-lucide="move" class="w-3.5 h-3.5 text-rose-400"></i> 右鍵平移</span>
+    </div>
+
+    <!-- 2D 等高線圖 (Contour Plot) 懸浮視窗 -->
+    <div class="absolute bottom-6 left-6 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-3 shadow-2xl w-72 z-10">
+      <div class="flex justify-between items-center mb-1.5">
+        <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+          <i data-lucide="compass" class="w-3.5 h-3.5 text-rose-400"></i> 2D 等高線雙曲線圖
+        </span>
+        <span class="text-[10px] text-slate-400">雙曲線交會於 (0,0)</span>
+      </div>
+      <canvas id="canvasContour" width="264" height="150" class="w-full bg-slate-950 rounded-lg border border-slate-800"></canvas>
+      <div class="text-[10px] text-slate-400 mt-1 flex justify-between">
+        <span class="text-rose-400">紅線: z > 0</span>
+        <span class="text-amber-300">漸近線: z = 0</span>
+        <span class="text-cyan-400">藍線: z < 0</span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    lucide.createIcons();
+
+    // 狀態設定
+    const state = {
+      a: 0.5,
+      b: 0.5,
+      x0: 0.0,
+      y0: 0.0,
+      showSliceX: true,
+      showSliceY: true,
+      showTangent: true,
+      showRuled: false,
+      gridRange: 2.2
+    };
+
+    function f(x, y) {
+      return state.a * x * x - state.b * y * y;
+    }
+    function dfdx(x, y) { return 2 * state.a * x; }
+    function dfdy(x, y) { return -2 * state.b * y; }
+
+    // 初始化 Three.js 場景
+    const container = document.getElementById('webgl-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x020617);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(5.5, 4.5, 6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 0, 0);
+
+    // 光源配置
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight1.position.set(6, 10, 8);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0xf43f5e, 0.4);
+    dirLight2.position.set(-8, -4, -6);
+    scene.add(dirLight2);
+
+    // 空間座標系 (Three.js: Y向上，但在微積分中通常 Z 向上，這裡將空間轉換為 X-Z 平面底，Y 為垂直軸)
+    // 映射: 3D_X = 數學x, 3D_Y = 數學z, 3D_Z = 數學y
+    const axesHelper = new THREE.AxesHelper(3.5);
+    scene.add(axesHelper);
+
+    const grid = new THREE.GridHelper(6, 12, 0x334155, 0x1e293b);
+    grid.position.set(0, -2, 0);
+    scene.add(grid);
+
+    // 幾何物件群組
+    const surfaceGroup = new THREE.Group();
+    scene.add(surfaceGroup);
+
+    let saddleMesh = null;
+    let tangentPlaneMesh = null;
+    let normalArrow = null;
+    let probePointMesh = null;
+    let sliceXLine = null;
+    let sliceYLine = null;
+    let ruledLinesGroup = new THREE.Group();
+    scene.add(ruledLinesGroup);
+
+    // 建構主要馬鞍曲面 (Parametric / BufferGeometry)
+    function buildSurface() {
+      if (saddleMesh) {
+        saddleMesh.geometry.dispose();
+        saddleMesh.material.dispose();
+        surfaceGroup.remove(saddleMesh);
+      }
+
+      const res = 50;
+      const R = state.gridRange;
+      const positions = [];
+      const colors = [];
+      const indices = [];
+
+      for (let i = 0; i <= res; i++) {
+        const u = -R + (i / res) * (2 * R); // x
+        for (let j = 0; j <= res; j++) {
+          const v = -R + (j / res) * (2 * R); // y
+          const z = f(u, v); // 數學 z
+
+          positions.push(u, z, v);
+
+          // 根據曲面高度 (z) 進行頂點著色：正值偏紅橙，負值偏青藍
+          const normZ = (z + 2.5) / 5.0; // clamp ~ 0 to 1
+          const c = new THREE.Color();
+          c.setHSL(0.55 - normZ * 0.55, 0.85, 0.55);
+          colors.push(c.r, c.g, c.b);
+        }
+      }
+
+      for (let i = 0; i < res; i++) {
+        for (let j = 0; j < res; j++) {
+          const a = i * (res + 1) + j;
+          const b = (i + 1) * (res + 1) + j;
+          const c = (i + 1) * (res + 1) + (j + 1);
+          const d = i * (res + 1) + (j + 1);
+          indices.push(a, b, d);
+          indices.push(b, c, d);
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.35,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.88,
+        side: THREE.DoubleSide
+      });
+
+      saddleMesh = new THREE.Mesh(geo, mat);
+      surfaceGroup.add(saddleMesh);
+    }
+
+    // 更新切點、切平面與法向量
+    function updateTangentAndProbe() {
+      const x0 = state.x0;
+      const y0 = state.y0;
+      const z0 = f(x0, y0);
+      const fx = dfdx(x0, y0);
+      const fy = dfdy(x0, y0);
+
+      // 切點小球 (Probe Sphere)
+      if (!probePointMesh) {
+        const pGeo = new THREE.SphereGeometry(0.08, 16, 16);
+        const pMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        probePointMesh = new THREE.Mesh(pGeo, pMat);
+        scene.add(probePointMesh);
+      }
+      probePointMesh.position.set(x0, z0, y0);
+
+      // 切平面 (局部切片面: z - z0 = fx*(x - x0) + fy*(y - y0))
+      if (tangentPlaneMesh) scene.remove(tangentPlaneMesh);
+      if (normalArrow) scene.remove(normalArrow);
+
+      if (state.showTangent) {
+        const planeSize = 1.4;
+        const pGeo = new THREE.PlaneGeometry(planeSize, planeSize, 4, 4);
+        const pMat = new THREE.MeshStandardMaterial({
+          color: 0xf43f5e,
+          transparent: true,
+          opacity: 0.6,
+          side: THREE.DoubleSide,
+          roughness: 0.3
+        });
+        tangentPlaneMesh = new THREE.Mesh(pGeo, pMat);
+
+        // 法向量在數學座標系中為 (-fx, -fy, 1)
+        // 映射到 Three.js (x, z, y) -> (-fx, 1, -fy)
+        const mathNormal = new THREE.Vector3(-fx, 1, -fy).normalize();
+
+        // 旋轉切平面使法向量對齊
+        tangentPlaneMesh.position.set(x0, z0, y0);
+        tangentPlaneMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), mathNormal);
+        scene.add(tangentPlaneMesh);
+
+        // 法向量箭頭
+        normalArrow = new THREE.ArrowHelper(
+          mathNormal,
+          new THREE.Vector3(x0, z0, y0),
+          1.2,
+          0x10b981,
+          0.2,
+          0.1
+        );
+        scene.add(normalArrow);
+      }
+
+      // 更新側邊欄數值
+      document.getElementById('mSlopes').textContent = `${fx.toFixed(2)}, ${fy.toFixed(2)}`;
+      document.getElementById('mNormal').textContent = `(-${fx.toFixed(2)}, -${fy.toFixed(2)}, 1)`;
+      const c = z0 - fx * x0 - fy * y0;
+      const signC = c >= 0 ? `+ ${c.toFixed(2)}` : `- ${Math.abs(c).toFixed(2)}`;
+      document.getElementById('mTangentEq').textContent = `z = ${fx.toFixed(2)}x ${fy >= 0 ? '+' : ''}${fy.toFixed(2)}y ${signC}`;
+    }
+
+    // 更新正交主曲率切線剖面
+    function updateCurvatureSlices() {
+      if (sliceXLine) scene.remove(sliceXLine);
+      if (sliceYLine) scene.remove(sliceYLine);
+
+      const R = state.gridRange;
+      const ptsX = [];
+      const ptsY = [];
+      const steps = 60;
+
+      // X 軸切片 (固定 y = y0，沿 x 走)
+      if (state.showSliceX) {
+        for (let i = 0; i <= steps; i++) {
+          const x = -R + (i / steps) * (2 * R);
+          const z = f(x, state.y0);
+          ptsX.push(new THREE.Vector3(x, z + 0.015, state.y0)); // 微幅抬高避免 Z-fighting
+        }
+        const geoX = new THREE.BufferGeometry().setFromPoints(ptsX);
+        const matX = new THREE.LineBasicMaterial({ color: 0xf43f5e, linewidth: 3 });
+        sliceXLine = new THREE.Line(geoX, matX);
+        scene.add(sliceXLine);
+      }
+
+      // Y 軸切片 (固定 x = x0，沿 y 走)
+      if (state.showSliceY) {
+        for (let i = 0; i <= steps; i++) {
+          const y = -R + (i / steps) * (2 * R);
+          const z = f(state.x0, y);
+          ptsY.push(new THREE.Vector3(state.x0, z + 0.015, y));
+        }
+        const geoY = new THREE.BufferGeometry().setFromPoints(ptsY);
+        const matY = new THREE.LineBasicMaterial({ color: 0x06b6d4, linewidth: 3 });
+        sliceYLine = new THREE.Line(geoY, matY);
+        scene.add(sliceYLine);
+      }
+    }
+
+    // 雙重直紋性（Ruled Surface）直線簇
+    function updateRuledSurface() {
+      while (ruledLinesGroup.children.length > 0) {
+        ruledLinesGroup.remove(ruledLinesGroup.children[0]);
+      }
+      if (!state.showRuled) return;
+
+      const numLines = 14;
+      const R = state.gridRange;
+      const sqrtA = Math.sqrt(state.a);
+      const sqrtB = Math.sqrt(state.b);
+
+      // 馬鞍面 z = (√a x - √b y)(√a x + √b y) 是雙重直紋面
+      for (let k = -numLines / 2; k <= numLines / 2; k++) {
+        const uVal = (k / (numLines / 2)) * 1.5;
+        const pts1 = [];
+        const pts2 = [];
+        for (let t = -R; t <= R; t += 0.2) {
+          // 直線族 1
+          const x1 = t;
+          const y1 = (sqrtA * x1 - uVal) / sqrtB;
+          const z1 = uVal * (sqrtA * x1 + sqrtB * y1);
+          if (Math.abs(y1) <= R && Math.abs(z1) <= 3) pts1.push(new THREE.Vector3(x1, z1, y1));
+
+          // 直線族 2
+          const y2 = t;
+          const x2 = (sqrtB * y2 + uVal) / sqrtA;
+          const z2 = uVal * (sqrtA * x2 - sqrtB * y2);
+          if (Math.abs(x2) <= R && Math.abs(z2) <= 3) pts2.push(new THREE.Vector3(x2, z2, y2));
+        }
+
+        if (pts1.length > 1) {
+          const geo1 = new THREE.BufferGeometry().setFromPoints(pts1);
+          ruledLinesGroup.add(new THREE.Line(geo1, new THREE.LineBasicMaterial({ color: 0xe2e8f0, opacity: 0.35, transparent: true })));
+        }
+        if (pts2.length > 1) {
+          const geo2 = new THREE.BufferGeometry().setFromPoints(pts2);
+          ruledLinesGroup.add(new THREE.Line(geo2, new THREE.LineBasicMaterial({ color: 0xa855f7, opacity: 0.35, transparent: true })));
+        }
+      }
+    }
+
+    // 2D 畫布：等高線雙曲線圖 (Contour Map)
+    const canvasContour = document.getElementById('canvasContour');
+    const ctxContour = canvasContour.getContext('2d');
+
+    function drawContourMap() {
+      const w = canvasContour.width;
+      const h = canvasContour.height;
+      ctxContour.clearRect(0, 0, w, h);
+
+      const cx = w / 2;
+      const cy = h / 2;
+      const scale = w / (state.gridRange * 2);
+
+      // 坐標軸
+      ctxContour.strokeStyle = '#334155';
+      ctxContour.lineWidth = 1;
+      ctxContour.beginPath();
+      ctxContour.moveTo(0, cy); ctxContour.lineTo(w, cy);
+      ctxContour.moveTo(cx, 0); ctxContour.lineTo(cx, h);
+      ctxContour.stroke();
+
+      // 繪製等高線家族 (z = C)
+      const levels = [-1.5, -0.8, -0.3, 0, 0.3, 0.8, 1.5];
+      levels.forEach(C => {
+        if (C === 0) {
+          // 漸近線: a*x^2 = b*y^2 => y = ±√(a/b) x
+          ctxContour.strokeStyle = '#f59e0b';
+          ctxContour.setLineDash([3, 3]);
+          const slope = Math.sqrt(state.a / state.b);
+          ctxContour.beginPath();
+          ctxContour.moveTo(0, cy - (-cx * slope));
+          ctxContour.lineTo(w, cy - ((w - cx) * slope));
+          ctxContour.moveTo(0, cy - (cx * slope));
+          ctxContour.lineTo(w, cy - (-(w - cx) * slope));
+          ctxContour.stroke();
+          ctxContour.setLineDash([]);
+        } else {
+          // 雙曲線 a*x^2 - b*y^2 = C
+          ctxContour.strokeStyle = C > 0 ? '#f43f5e' : '#06b6d4';
+          ctxContour.lineWidth = 1.2;
+          ctxContour.beginPath();
+
+          if (C > 0) {
+            // 開口朝向左右 (X 軸)
+            const minX = Math.sqrt(C / state.a);
+            for (let sign = -1; sign <= 1; sign += 2) {
+              for (let px = minX; px <= state.gridRange; px += 0.05) {
+                const py = Math.sqrt((state.a * px * px - C) / state.b);
+                const scrX = cx + (sign * px) * scale;
+                const scrY1 = cy - py * scale;
+                const scrY2 = cy + py * scale;
+                if (px === minX) ctxContour.moveTo(scrX, scrY1);
+                else ctxContour.lineTo(scrX, scrY1);
+              }
+            }
+          } else {
+            // 開口朝向上下 (Y 軸)
+            const minY = Math.sqrt(-C / state.b);
+            for (let sign = -1; sign <= 1; sign += 2) {
+              for (let py = minY; py <= state.gridRange; py += 0.05) {
+                const px = Math.sqrt((state.b * py * py + C) / state.a);
+                const scrY = cy - (sign * py) * scale;
+                const scrX1 = cx - px * scale;
+                const scrX2 = cx + px * scale;
+                if (py === minY) ctxContour.moveTo(scrX1, scrY);
+                else ctxContour.lineTo(scrX1, scrY);
+              }
+            }
+          }
+          ctxContour.stroke();
+        }
+      });
+
+      // 探針當前位置標註
+      const probeScrX = cx + state.x0 * scale;
+      const probeScrY = cy - state.y0 * scale;
+      ctxContour.fillStyle = '#ffffff';
+      ctxContour.beginPath();
+      ctxContour.arc(probeScrX, probeScrY, 4, 0, Math.PI * 2);
+      ctxContour.fill();
+    }
+
+    // 事件監聽與控制項綁定
+    const paramASlider = document.getElementById('paramASlider');
+    const paramBSlider = document.getElementById('paramBSlider');
+    const x0Slider = document.getElementById('x0Slider');
+    const y0Slider = document.getElementById('y0Slider');
+
+    paramASlider.addEventListener('input', (e) => {
+      state.a = parseFloat(e.target.value);
+      document.getElementById('paramAVal').textContent = state.a.toFixed(2);
+      buildSurface();
+      updateTangentAndProbe();
+      updateCurvatureSlices();
+      updateRuledSurface();
+      drawContourMap();
+    });
+
+    paramBSlider.addEventListener('input', (e) => {
+      state.b = parseFloat(e.target.value);
+      document.getElementById('paramBVal').textContent = state.b.toFixed(2);
+      buildSurface();
+      updateTangentAndProbe();
+      updateCurvatureSlices();
+      updateRuledSurface();
+      drawContourMap();
+    });
+
+    x0Slider.addEventListener('input', (e) => {
+      state.x0 = parseFloat(e.target.value);
+      document.getElementById('x0Val').textContent = state.x0.toFixed(2);
+      updateTangentAndProbe();
+      updateCurvatureSlices();
+      drawContourMap();
+    });
+
+    y0Slider.addEventListener('input', (e) => {
+      state.y0 = parseFloat(e.target.value);
+      document.getElementById('y0Val').textContent = state.y0.toFixed(2);
+      updateTangentAndProbe();
+      updateCurvatureSlices();
+      drawContourMap();
+    });
+
+    document.getElementById('btnResetToOrigin').addEventListener('click', () => {
+      state.x0 = 0;
+      state.y0 = 0;
+      x0Slider.value = 0;
+      y0Slider.value = 0;
+      document.getElementById('x0Val').textContent = '0.00';
+      document.getElementById('y0Val').textContent = '0.00';
+      updateTangentAndProbe();
+      updateCurvatureSlices();
+      drawContourMap();
+    });
+
+    document.getElementById('showSliceX').addEventListener('change', (e) => {
+      state.showSliceX = e.target.checked;
+      updateCurvatureSlices();
+    });
+
+    document.getElementById('showSliceY').addEventListener('change', (e) => {
+      state.showSliceY = e.target.checked;
+      updateCurvatureSlices();
+    });
+
+    document.getElementById('showTangentPlane').addEventListener('change', (e) => {
+      state.showTangent = e.target.checked;
+      updateTangentAndProbe();
+    });
+
+    document.getElementById('showRuledLines').addEventListener('change', (e) => {
+      state.showRuled = e.target.checked;
+      updateRuledSurface();
+    });
+
+    // 視窗縮放
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    // 初始渲染執行
+    buildSurface();
+    updateTangentAndProbe();
+    updateCurvatureSlices();
+    drawContourMap();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
